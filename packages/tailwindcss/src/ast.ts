@@ -1,7 +1,7 @@
 import { Polyfills } from '.'
 import { parseAtRule } from './css-parser'
 import type { DesignSystem } from './design-system'
-import type { Offsets } from './source-maps/offsets'
+import type { Offsets, Span } from './source-maps/offsets'
 import { Theme, ThemeOptions } from './theme'
 import { DefaultMap } from './utils/default-map'
 import { extractUsedVariables } from './utils/variables'
@@ -615,6 +615,7 @@ export function optimizeAst(
         path.unshift({
           kind: 'at-root',
           nodes: newAst,
+          offsets: {},
         })
 
         // Remove nodes from the parent as long as the parent is empty
@@ -702,7 +703,15 @@ export function optimizeAst(
   return newAst
 }
 
-export function toCss(ast: AstNode[]) {
+export function toCss(ast: AstNode[], track?: boolean) {
+  let pos = 0
+
+  function span(value: string) {
+    let tmp: Span = [pos, pos + value.length]
+    pos += value.length
+    return tmp
+  }
+
   function stringify(node: AstNode, depth = 0): string {
     let css = ''
     let indent = '  '.repeat(depth)
@@ -710,15 +719,77 @@ export function toCss(ast: AstNode[]) {
     // Declaration
     if (node.kind === 'declaration') {
       css += `${indent}${node.property}: ${node.value}${node.important ? ' !important' : ''};\n`
+
+      if (track) {
+        // indent
+        pos += indent.length
+
+        // node.property
+        if (node.offsets.property) {
+          node.offsets.property.dst = span(node.property)
+        }
+
+        // `: `
+        pos += 2
+
+        // node.value
+        if (node.offsets.value) {
+          node.offsets.value.dst = span(node.value!)
+        }
+
+        // !important
+        if (node.important) {
+          pos += 11
+        }
+
+        // `;\n`
+        pos += 2
+      }
     }
 
     // Rule
     else if (node.kind === 'rule') {
       css += `${indent}${node.selector} {\n`
+
+      if (track) {
+        // indent
+        pos += indent.length
+
+        // node.selector
+        if (node.offsets.selector) {
+          node.offsets.selector.dst = span(node.selector)
+        }
+
+        // ` `
+        pos += 1
+
+        // `{`
+        if (track && node.offsets.body) {
+          node.offsets.body.dst = span(`{`)
+        }
+
+        // `\n`
+        pos += 1
+      }
+
       for (let child of node.nodes) {
         css += stringify(child, depth + 1)
       }
+
       css += `${indent}}\n`
+
+      if (track) {
+        // indent
+        pos += indent.length
+
+        // `}`
+        if (node.offsets.body?.dst) {
+          node.offsets.body.dst[1] = span(`}`)[1]
+        }
+
+        // `\n`
+        pos += 1
+      }
     }
 
     // AtRule
@@ -732,19 +803,101 @@ export function toCss(ast: AstNode[]) {
       // ```
       if (node.nodes.length === 0) {
         let css = `${indent}${node.name} ${node.params};\n`
+
+        if (track) {
+          // indent
+          pos += indent.length
+
+          // node.name
+          if (node.offsets.name) {
+            node.offsets.name.dst = span(node.name)
+          }
+
+          // ` `
+          pos += 1
+
+          // node.params
+          if (node.offsets.params) {
+            node.offsets.params.dst = span(node.params)
+          }
+
+          // `;\n`
+          pos += 2
+        }
+
         return css
       }
 
       css += `${indent}${node.name}${node.params ? ` ${node.params} ` : ' '}{\n`
+
+      if (track) {
+        // indent
+        pos += indent.length
+
+        // node.name
+        if (node.offsets.name) {
+          node.offsets.name.dst = span(node.name)
+        }
+
+        if (node.params) {
+          // ` `
+          pos += 1
+
+          // node.params
+          if (node.offsets.params) {
+            node.offsets.params.dst = span(node.params)
+          }
+        }
+
+        // ` `
+        pos += 1
+
+        // `{`
+        if (track && node.offsets.body) {
+          node.offsets.body.dst = span(`{`)
+        }
+
+        // `\n`
+        pos += 1
+      }
+
       for (let child of node.nodes) {
         css += stringify(child, depth + 1)
       }
+
       css += `${indent}}\n`
+
+      if (track) {
+        // indent
+        pos += indent.length
+
+        // `}`
+        if (node.offsets.body?.dst) {
+          node.offsets.body.dst[1] = span(`}`)[1]
+        }
+
+        // `\n`
+        pos += 1
+      }
     }
 
     // Comment
     else if (node.kind === 'comment') {
       css += `${indent}/*${node.value}*/\n`
+
+      if (track) {
+        // indent
+        pos += indent.length
+
+        // The comment itself. We do this instead of just the inside because
+        // it seems more useful to have the entire comment span tracked.
+        if (node.offsets.value) {
+          node.offsets.value.dst = span(`/*${node.value}*/`)
+        }
+
+        // `\n`
+        pos += 1
+      }
     }
 
     // These should've been handled already by `optimizeAst` which
