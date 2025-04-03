@@ -5,10 +5,15 @@ import postcss, {
   type Source as PostcssSource,
 } from 'postcss'
 import { atRule, comment, decl, rule, type AstNode } from '../../tailwindcss/src/ast'
+import { createLineTable, type LineTable } from '../../tailwindcss/src/source-maps/line-table'
+import { DefaultMap } from '../../tailwindcss/src/utils/default-map'
 
 const EXCLAMATION_MARK = 0x21
 
 export function cssAstToPostCssAst(ast: AstNode[], source: PostcssSource | undefined): PostCssRoot {
+  // Print the AST
+  let lineTables = new DefaultMap<string, LineTable>((source) => createLineTable(source))
+
   let root = postcss.root()
   root.source = source
 
