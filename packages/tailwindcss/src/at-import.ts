@@ -10,6 +10,7 @@ export async function substituteAtImports(
   base: string,
   loadStylesheet: LoadStylesheet,
   recurseCount = 0,
+  track = false,
 ) {
   let features = Features.None
   let promises: Promise<void>[] = []
@@ -45,8 +46,8 @@ export async function substituteAtImports(
           }
 
           let loaded = await loadStylesheet(uri, base)
-          let ast = CSS.parse(loaded.content)
-          await substituteAtImports(ast, loaded.base, loadStylesheet, recurseCount + 1)
+          let ast = CSS.parse(loaded.content, { from: track ? uri : undefined })
+          await substituteAtImports(ast, loaded.base, loadStylesheet, recurseCount + 1, track)
 
           contextNode.nodes = buildImportNodes(
             [context({ base: loaded.base }, ast)],
