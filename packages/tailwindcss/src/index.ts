@@ -26,6 +26,7 @@ import { applyVariant, compileCandidates } from './compile'
 import { substituteFunctions } from './css-functions'
 import * as CSS from './css-parser'
 import { buildDesignSystem, type DesignSystem } from './design-system'
+import type { DecodedSourceMap } from './source-maps/source-map'
 import { Theme, ThemeOptions } from './theme'
 import { createCssUtility } from './utilities'
 import { expand } from './utils/brace-expansion'
@@ -51,6 +52,7 @@ export const enum Polyfills {
 
 type CompileOptions = {
   base?: string
+  from?: string
   polyfills?: Polyfills
   loadModule?: (
     id: string,
@@ -125,6 +127,7 @@ async function parseCss(
   ast: AstNode[],
   {
     base = '',
+    from,
     loadModule = throwOnLoadModule,
     loadStylesheet = throwOnLoadStylesheet,
   }: CompileOptions = {},
@@ -132,7 +135,7 @@ async function parseCss(
   let features = Features.None
   ast = [contextNode({ base }, ast)] as AstNode[]
 
-  features |= await substituteAtImports(ast, base, loadStylesheet)
+  features |= await substituteAtImports(ast, base, loadStylesheet, 0, from !== undefined)
 
   let important = null as boolean | null
   let theme = new Theme()
@@ -766,8 +769,9 @@ export async function compile(
   root: Root
   features: Features
   build(candidates: string[]): string
+  buildSourceMap(): DecodedSourceMap
 }> {
-  let ast = CSS.parse(css)
+  let ast = CSS.parse(css, { from: opts.from })
   let api = await compileAst(ast, opts)
   let compiledAst = ast
   let compiledCss = css
@@ -785,6 +789,10 @@ export async function compile(
       compiledAst = newAst
 
       return compiledCss
+    },
+
+    buildSourceMap() {
+      //
     },
   }
 }
