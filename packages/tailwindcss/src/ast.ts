@@ -677,7 +677,8 @@ export function toCss(ast: AstNode[]) {
       // @layer base, components, utilities;
       // ```
       if (node.nodes.length === 0) {
-        return `${indent}${node.name} ${node.params};\n`
+        let css = `${indent}${node.name} ${node.params};\n`
+        return css
       }
 
       css += `${indent}${node.name}${node.params ? ` ${node.params} ` : ' '}{\n`
@@ -692,7 +693,7 @@ export function toCss(ast: AstNode[]) {
       css += `${indent}/*${node.value}*/\n`
     }
 
-    // These should've been handled already by `prepareAstForPrinting` which
+    // These should've been handled already by `optimizeAst` which
     // means we can safely ignore them here. We return an empty string
     // immediately to signal that something went wrong.
     else if (node.kind === 'context' || node.kind === 'at-root') {
@@ -710,10 +711,7 @@ export function toCss(ast: AstNode[]) {
   let css = ''
 
   for (let node of ast) {
-    let result = stringify(node)
-    if (result !== '') {
-      css += result
-    }
+    css += stringify(node, 0)
   }
 
   return css
