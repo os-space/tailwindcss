@@ -9,6 +9,7 @@ import {
   type Declaration,
   type Rule,
 } from './ast'
+import { createInputSource } from './source-maps/offsets'
 
 const BACKSLASH = 0x5c
 const SLASH = 0x2f
@@ -30,7 +31,13 @@ const DASH = 0x2d
 const AT_SIGN = 0x40
 const EXCLAMATION_MARK = 0x21
 
-export function parse(input: string) {
+export interface ParseOptions {
+  from?: string
+}
+
+export function parse(input: string, opts?: ParseOptions) {
+  let source = opts?.from ? createInputSource(opts.from, input) : null
+
   // Note: it is important that any transformations of the input string
   // *before* processing do NOT change the length of the string. This
   // would invalidate the mechanism used to track source locations.
@@ -51,6 +58,9 @@ export function parse(input: string) {
   let buffer = ''
   let closingBracketStack = ''
 
+  // The start of the first non-whitespace character in the buffer
+  let bufferStart = 0
+
   let peekChar
 
   for (let i = 0; i < input.length; i++) {
@@ -67,6 +77,7 @@ export function parse(input: string) {
     // ```
     //
     if (currentChar === BACKSLASH) {
+      if (buffer === '') bufferStart = i
       buffer += input.slice(i, i + 2)
       i += 1
     }
@@ -112,6 +123,14 @@ export function parse(input: string) {
       if (commentString.charCodeAt(2) === EXCLAMATION_MARK) {
         let node = comment(commentString.slice(2, -2))
         licenseComments.push(node)
+
+        if (source) {
+          node.offsets.value = {
+            original: source,
+            src: [start, i + 1],
+            dst: null,
+          }
+        }
       }
     }
 
@@ -211,6 +230,7 @@ export function parse(input: string) {
 
       let start = i
       let colonIdx = -1
+      let valueIdx = -1
 
       for (let j = i + 2; j < input.length; j++) {
         peekChar = input.charCodeAt(j)
@@ -291,6 +311,11 @@ export function parse(input: string) {
             closingBracketStack = closingBracketStack.slice(0, -1)
           }
         }
+
+        // Value part of the custom property
+        else if (colonIdx !== -1 && valueIdx == -1) {
+          valueIdx = i
+        }
       }
 
       let declaration = parseDeclaration(buffer, colonIdx)
@@ -300,6 +325,20 @@ export function parse(input: string) {
         parent.nodes.push(declaration)
       } else {
         ast.push(declaration)
+      }
+
+      if (source) {
+        declaration.offsets.property = {
+          original: source,
+          src: [start, colonIdx],
+          dst: null,
+        }
+
+        declaration.offsets.value = {
+          original: source,
+          src: [valueIdx, i],
+          dst: null,
+        }
       }
 
       buffer = ''
@@ -324,6 +363,23 @@ export function parse(input: string) {
       // We are the root node which means we are done with the current node.
       else {
         ast.push(node)
+      }
+
+      // Track the source location for source maps
+      if (source) {
+        // TODO
+        node.offsets.name = {
+          original: source,
+          src: [bufferStart, bufferStart],
+          dst: null,
+        }
+
+        // TODO
+        node.offsets.params = {
+          original: source,
+          src: [bufferStart, bufferStart],
+          dst: null,
+        }
       }
 
       // Reset the state for the next node.
@@ -358,6 +414,22 @@ export function parse(input: string) {
         ast.push(declaration)
       }
 
+      if (source) {
+        // TODO
+        declaration.offsets.property = {
+          original: source,
+          src: [bufferStart, bufferStart],
+          dst: null,
+        }
+
+        // TODO
+        declaration.offsets.value = {
+          original: source,
+          src: [bufferStart, i],
+          dst: null,
+        }
+      }
+
       buffer = ''
     }
 
@@ -383,6 +455,39 @@ export function parse(input: string) {
       // Make the current node the new parent, so that nested nodes can be
       // attached to it.
       parent = node
+
+      // Track the source location for source maps
+      if (source) {
+        if (node.kind === 'rule') {
+          // TODO
+          node.offsets.selector = {
+            original: source,
+            src: [bufferStart, bufferStart],
+            dst: null,
+          }
+        } else if (node.kind === 'at-rule') {
+          // TODO
+          node.offsets.name = {
+            original: source,
+            src: [bufferStart, bufferStart],
+            dst: null,
+          }
+
+          // TODO
+          node.offsets.params = {
+            original: source,
+            src: [bufferStart, bufferStart],
+            dst: null,
+          }
+        }
+
+        // TODO: This might be correct already??
+        node.offsets.body = {
+          original: source,
+          src: [i, i],
+          dst: null,
+        }
+      }
 
       // Reset the state for the next node.
       buffer = ''
@@ -427,6 +532,25 @@ export function parse(input: string) {
             ast.push(node)
           }
 
+          // Track the source location for source maps
+          if (source) {
+            // TODO
+            node.offsets.name = {
+              original: source,
+              src: [bufferStart, bufferStart],
+              dst: null,
+            }
+
+            // TODO
+            node.offsets.params = {
+              original: source,
+              src: [bufferStart, bufferStart],
+              dst: null,
+            }
+
+            // No body for this at-rule
+          }
+
           // Reset the state for the next node.
           buffer = ''
           node = null
@@ -454,6 +578,22 @@ export function parse(input: string) {
             if (!node) throw new Error(`Invalid declaration: \`${buffer.trim()}\``)
 
             parent.nodes.push(node)
+
+            if (source) {
+              // TODO
+              node.offsets.property = {
+                original: source,
+                src: [bufferStart, bufferStart],
+                dst: null,
+              }
+
+              // TODO
+              node.offsets.value = {
+                original: source,
+                src: [bufferStart, i],
+                dst: null,
+              }
+            }
           }
         }
       }
@@ -466,6 +606,11 @@ export function parse(input: string) {
       // node.
       if (grandParent === null && parent) {
         ast.push(parent)
+
+        // We want to track the closing `}` as part of the parent node.
+        if (source && parent.offsets.body) {
+          parent.offsets.body.src[1] = i
+        }
       }
 
       // Go up one level in the stack.
