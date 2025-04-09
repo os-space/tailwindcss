@@ -26,7 +26,7 @@ import { applyVariant, compileCandidates } from './compile'
 import { substituteFunctions } from './css-functions'
 import * as CSS from './css-parser'
 import { buildDesignSystem, type DesignSystem } from './design-system'
-import type { DecodedSourceMap } from './source-maps/source-map'
+import { createSourceMap, type DecodedSourceMap } from './source-maps/source-map'
 import { Theme, ThemeOptions } from './theme'
 import { createCssUtility } from './utilities'
 import { expand } from './utils/brace-expansion'
@@ -792,7 +792,9 @@ export async function compile(
     },
 
     buildSourceMap() {
-      //
+      return createSourceMap({
+        ast: compiledAst,
+      })
     },
   }
 }
