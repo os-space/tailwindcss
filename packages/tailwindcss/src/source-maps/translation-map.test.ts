@@ -58,19 +58,28 @@ test('comment, multi line', async () => {
 })
 
 test('declaration, normal property, single line', async () => {
-  let { ast, format } = await analyze(`.foo { color: red; }`)
+  // Works, no changes needed
+  let { ast, css, format } = await analyze(`.foo { color: red; }`)
 
   assert(ast[0].kind === 'rule')
   assert(ast[0].nodes[0].kind === 'declaration')
   expect(format(ast[0].nodes[0])).toMatchInlineSnapshot(`
     {
-      "property": "2:3-2:8 <- 1:1-1:1",
-      "value": "2:10-2:13 <- 1:1-1:18",
+      "property": "2:3-2:8 <- 1:8-1:13",
+      "value": "2:10-2:13 <- 1:14-1:18",
     }
+  `)
+
+  expect(css).toMatchInlineSnapshot(`
+    ".foo {
+      color: red;
+    }
+    "
   `)
 })
 
 test('declaration, normal property, multi line', async () => {
+  // Works, no changes needed
   let { ast, css, format } = await analyze(`
       .foo {
         grid-template-areas:
@@ -84,8 +93,8 @@ test('declaration, normal property, multi line', async () => {
   assert(ast[0].nodes[0].kind === 'declaration')
   expect(format(ast[0].nodes[0])).toMatchInlineSnapshot(`
     {
-      "property": "2:3-2:22 <- 1:1-1:1",
-      "value": "2:24-2:47 <- 1:1-6:18",
+      "property": "2:3-2:22 <- 3:9-3:28",
+      "value": "2:24-2:47 <- 3:29-6:18",
     }
   `)
 
@@ -98,14 +107,15 @@ test('declaration, normal property, multi line', async () => {
 })
 
 test('declaration, custom property, single line', async () => {
+  // Works, no changes needed
   let { ast, css, format } = await analyze(`.foo { --foo: bar; }`)
 
   assert(ast[0].kind === 'rule')
   assert(ast[0].nodes[0].kind === 'declaration')
   expect(format(ast[0].nodes[0])).toMatchInlineSnapshot(`
     {
-      "property": "2:3-2:8 <- 1:8-1:6",
-      "value": "2:10-2:13 <- 1:8-1:18",
+      "property": "2:3-2:8 <- 1:8-1:13",
+      "value": "2:10-2:13 <- 1:14-1:18",
     }
   `)
   expect(css).toMatchInlineSnapshot(`
@@ -117,6 +127,7 @@ test('declaration, custom property, single line', async () => {
 })
 
 test('declaration, custom property, multi line', async () => {
+  // Works, no changes needed
   let { ast, format } = await analyze(`
     .foo {
       --foo: bar\nbaz;
@@ -127,25 +138,32 @@ test('declaration, custom property, multi line', async () => {
   assert(ast[0].nodes[0].kind === 'declaration')
   expect(format(ast[0].nodes[0])).toMatchInlineSnapshot(`
     {
-      "property": "2:3-2:8 <- 3:7-2:5",
-      "value": "2:10-3:4 <- 3:7-4:4",
+      "property": "2:3-2:8 <- 3:7-3:12",
+      "value": "2:10-3:4 <- 3:13-4:4",
     }
   `)
 })
 
 test('at rules, bodyless, single line', async () => {
-  let { ast, format } = await analyze(`@layer foo,     bar;`)
+  // Works, no changes needed
+  let { ast, css, format } = await analyze(`@layer foo,     bar;`)
 
   assert(ast[0].kind === 'at-rule')
   expect(format(ast[0])).toMatchInlineSnapshot(`
     {
-      "name": "1:1-1:7 <- 1:1-1:1",
-      "params": "1:8-1:16 <- 1:1-1:1",
+      "name": "1:1-1:7 <- 1:1-1:7",
+      "params": "1:8-1:16 <- 1:7-1:20",
     }
+  `)
+
+  expect(css).toMatchInlineSnapshot(`
+    "@layer foo, bar;
+    "
   `)
 })
 
 test('at rules, bodyless, multi line', async () => {
+  // Works, no changes needed
   let { ast, format } = await analyze(`
     @layer
       foo,
@@ -156,8 +174,8 @@ test('at rules, bodyless, multi line', async () => {
   assert(ast[0].kind === 'at-rule')
   expect(format(ast[0])).toMatchInlineSnapshot(`
     {
-      "name": "1:1-1:7 <- 1:1-1:1",
-      "params": "1:8-1:16 <- 1:1-1:1",
+      "name": "1:1-1:7 <- 2:5-2:11",
+      "params": "1:8-1:16 <- 2:11-5:5",
     }
   `)
 })
@@ -169,8 +187,8 @@ test('at rules, body, single line', async () => {
   expect(format(ast[0])).toMatchInlineSnapshot(`
     {
       "body": "1:12-3:2 <- 1:12-1:26",
-      "name": "1:1-1:7 <- 1:1-1:1",
-      "params": "1:8-1:11 <- 1:1-1:1",
+      "name": "1:1-1:7 <- 1:1-1:7",
+      "params": "1:8-1:11 <- 1:7-1:12",
     }
   `)
   expect(css).toMatchInlineSnapshot(`
@@ -181,7 +199,7 @@ test('at rules, body, single line', async () => {
   `)
 })
 
-test('at rules, body, multi line {d', async () => {
+test('at rules, body, multi line', async () => {
   let { ast, css, format } = await analyze(`
     @layer
       foo
@@ -194,8 +212,8 @@ test('at rules, body, multi line {d', async () => {
   expect(format(ast[0])).toMatchInlineSnapshot(`
     {
       "body": "1:12-3:2 <- 4:5-6:5",
-      "name": "1:1-1:7 <- 1:1-1:1",
-      "params": "1:8-1:11 <- 1:1-1:1",
+      "name": "1:1-1:7 <- 2:5-2:11",
+      "params": "1:8-1:11 <- 2:11-4:5",
     }
   `)
   expect(css).toMatchInlineSnapshot(`
@@ -237,7 +255,7 @@ test('style rules, body, multi line', async () => {
   expect(format(ast[0])).toMatchInlineSnapshot(`
     {
       "body": "1:17-3:2 <- 4:7-6:5",
-      "selector": "1:1-1:16 <- 1:1-1:1",
+      "selector": "1:1-1:16 <- 2:5-2:5",
     }
   `)
 
