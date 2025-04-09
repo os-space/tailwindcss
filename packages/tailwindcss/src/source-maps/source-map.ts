@@ -1,6 +1,7 @@
 import { walk, type AstNode } from '../ast'
-import { createLineTable, type Position } from './line-table'
-import { type Offsets } from './offsets'
+import { DefaultMap } from '../utils/default-map'
+import { createLineTable, type LineTable, type Position } from './line-table'
+import { type Offsets, type Source } from './offsets'
 
 /**
  * A "decoded" sourcemap
@@ -65,21 +66,10 @@ export interface DecodedMapping {
  *
  * This can easily be converted to a "raw" source map by any tool that needs to.
  **/
-export function createSourceMap({
-  // TODO: This needs to be a Record<string, string> to support multiple sources
-  //       for `@import` nodes.
-  original,
-  generated,
-  ast,
-}: {
-  original: string
-  generated: string
-  ast: AstNode[]
-}) {
+export function createSourceMap({ ast }: { ast: AstNode[] }) {
   // Compute line tables for both the original and generated source lazily so we
   // don't have to do it during parsing or printing.
-  let originalTable = createLineTable(original)
-  let generatedTable = createLineTable(generated)
+  let lineTables = new DefaultMap<Source, LineTable>((src) => createLineTable(src.code))
 
   // Convert each mapping to a set of positions
   let map: DecodedSourceMap = {
@@ -112,6 +102,9 @@ export function createSourceMap({
   for (let group of groups) {
     if (!group) continue
     if (!group.dst) continue
+
+    let originalTable = lineTables.get(group.original!)
+    let generatedTable = lineTables.get(group.generated!)
 
     let originalStart = originalTable.find(group.src[0])
     let generatedStart = generatedTable.find(group.dst[0])
