@@ -1,7 +1,7 @@
 import { Polyfills } from '.'
 import { parseAtRule } from './css-parser'
 import type { DesignSystem } from './design-system'
-import type { Offsets, Span } from './source-maps/offsets'
+import type { Offsets, Source, Span } from './source-maps/offsets'
 import { Theme, ThemeOptions } from './theme'
 import { DefaultMap } from './utils/default-map'
 import { extractUsedVariables } from './utils/variables'
@@ -708,6 +708,11 @@ export function optimizeAst(
 export function toCss(ast: AstNode[], track?: boolean) {
   let pos = 0
 
+  let source: Source = {
+    file: null,
+    code: '',
+  }
+
   function span(value: string) {
     let tmp: Span = [pos, pos + value.length]
     pos += value.length
@@ -729,6 +734,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
         // node.property
         if (node.offsets.property) {
           node.offsets.property.dst = span(node.property)
+          node.offsets.property.generated = source
         }
 
         // `: `
@@ -737,6 +743,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
         // node.value
         if (node.offsets.value) {
           node.offsets.value.dst = span(node.value!)
+          node.offsets.value.generated = source
         }
 
         // !important
@@ -760,6 +767,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
         // node.selector
         if (node.offsets.selector) {
           node.offsets.selector.dst = span(node.selector)
+          node.offsets.selector.generated = source
         }
 
         // ` `
@@ -768,6 +776,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
         // `{`
         if (track && node.offsets.body) {
           node.offsets.body.dst = span(`{`)
+          node.offsets.body.generated = source
         }
 
         // `\n`
@@ -787,6 +796,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
         // `}`
         if (node.offsets.body?.dst) {
           node.offsets.body.dst[1] = span(`}`)[1]
+          node.offsets.body.generated = source
         }
 
         // `\n`
@@ -813,6 +823,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
           // node.name
           if (node.offsets.name) {
             node.offsets.name.dst = span(node.name)
+            node.offsets.name.generated = source
           }
 
           // ` `
@@ -821,6 +832,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
           // node.params
           if (node.offsets.params) {
             node.offsets.params.dst = span(node.params)
+            node.offsets.params.generated = source
           }
 
           // `;\n`
@@ -839,6 +851,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
         // node.name
         if (node.offsets.name) {
           node.offsets.name.dst = span(node.name)
+          node.offsets.name.generated = source
         }
 
         if (node.params) {
@@ -848,6 +861,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
           // node.params
           if (node.offsets.params) {
             node.offsets.params.dst = span(node.params)
+            node.offsets.params.generated = source
           }
         }
 
@@ -857,6 +871,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
         // `{`
         if (track && node.offsets.body) {
           node.offsets.body.dst = span(`{`)
+          node.offsets.body.generated = source
         }
 
         // `\n`
@@ -876,6 +891,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
         // `}`
         if (node.offsets.body?.dst) {
           node.offsets.body.dst[1] = span(`}`)[1]
+          node.offsets.body.generated = source
         }
 
         // `\n`
@@ -895,6 +911,7 @@ export function toCss(ast: AstNode[], track?: boolean) {
         // it seems more useful to have the entire comment span tracked.
         if (node.offsets.value) {
           node.offsets.value.dst = span(`/*${node.value}*/`)
+          node.offsets.value.generated = source
         }
 
         // `\n`
@@ -922,6 +939,8 @@ export function toCss(ast: AstNode[], track?: boolean) {
   for (let node of ast) {
     css += stringify(node, 0)
   }
+
+  source.code = css
 
   return css
 }
