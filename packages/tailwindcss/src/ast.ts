@@ -116,7 +116,9 @@ export function atRule(name: string, params: string = '', nodes: AstNode[] = [])
 
 export function rule(selector: string, nodes: AstNode[] = []): StyleRule | AtRule {
   if (selector.charCodeAt(0) === AT_SIGN) {
-    return parseAtRule(selector, nodes)
+    let node = parseAtRule(selector)
+    node.nodes = nodes
+    return node
   }
 
   return styleRule(selector, nodes)
