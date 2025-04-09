@@ -410,15 +410,13 @@ export function parse(input: string, opts?: ParseOptions) {
       // Track the source location for source maps
       if (source) {
         if (node.kind === 'rule') {
-          // TODO
           node.offsets.selector = {
             original: source,
-            src: [bufferStart, bufferStart],
+            src: [bufferStart, i],
             dst: null,
           }
         }
 
-        // TODO: This might be correct already??
         node.offsets.body = {
           original: source,
           src: [i, i],

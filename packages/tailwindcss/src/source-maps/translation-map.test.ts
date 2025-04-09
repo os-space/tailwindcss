@@ -181,6 +181,7 @@ test('at rules, bodyless, multi line', async () => {
 })
 
 test('at rules, body, single line', async () => {
+  // Works, no changes needed
   let { ast, css, format } = await analyze(`@layer foo { color: red; }`)
 
   assert(ast[0].kind === 'at-rule')
@@ -200,6 +201,7 @@ test('at rules, body, single line', async () => {
 })
 
 test('at rules, body, multi line', async () => {
+  // Works, no changes needed
   let { ast, css, format } = await analyze(`
     @layer
       foo
@@ -225,13 +227,14 @@ test('at rules, body, multi line', async () => {
 })
 
 test('style rules, body, single line', async () => {
+  // Works, no changes needed
   let { ast, css, format } = await analyze(`.foo:is(.bar) { color: red; }`)
 
   assert(ast[0].kind === 'rule')
   expect(format(ast[0])).toMatchInlineSnapshot(`
     {
       "body": "1:15-3:2 <- 1:15-1:29",
-      "selector": "1:1-1:14 <- 1:1-1:1",
+      "selector": "1:1-1:14 <- 1:1-1:15",
     }
   `)
   expect(css).toMatchInlineSnapshot(`
@@ -243,6 +246,7 @@ test('style rules, body, single line', async () => {
 })
 
 test('style rules, body, multi line', async () => {
+  // Works, no changes needed
   let { ast, css, format } = await analyze(`
     .foo:is(
       .bar
@@ -255,7 +259,7 @@ test('style rules, body, multi line', async () => {
   expect(format(ast[0])).toMatchInlineSnapshot(`
     {
       "body": "1:17-3:2 <- 4:7-6:5",
-      "selector": "1:1-1:16 <- 2:5-2:5",
+      "selector": "1:1-1:16 <- 2:5-4:7",
     }
   `)
 
