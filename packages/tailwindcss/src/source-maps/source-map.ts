@@ -70,11 +70,16 @@ export function createSourceMap({ ast }: { ast: AstNode[] }) {
   // Compute line tables for both the original and generated source lazily so we
   // don't have to do it during parsing or printing.
   let lineTables = new DefaultMap<Source, LineTable>((src) => createLineTable(src.code))
+  let sourceTable = new DefaultMap<Source, DecodedSource>((src) => ({
+    url: src.file,
+    content: src.code,
+    ignore: false,
+  }))
 
   // Convert each mapping to a set of positions
   let map: DecodedSourceMap = {
     file: null,
-    sources: [{ url: null, content: null, ignore: false }],
+    sources: [],
     mappings: [],
   }
 
@@ -103,6 +108,8 @@ export function createSourceMap({ ast }: { ast: AstNode[] }) {
     if (!group) continue
     if (!group.dst) continue
 
+    let originalSource = sourceTable.get(group.original!)
+
     let originalTable = lineTables.get(group.original!)
     let generatedTable = lineTables.get(group.generated!)
 
@@ -111,7 +118,7 @@ export function createSourceMap({ ast }: { ast: AstNode[] }) {
 
     map.mappings.push({
       name: null,
-      originalSource: null,
+      originalSource,
 
       originalLine: originalStart.line,
       originalColumn: originalStart.column,
@@ -125,7 +132,7 @@ export function createSourceMap({ ast }: { ast: AstNode[] }) {
 
     map.mappings.push({
       name: null,
-      originalSource: null,
+      originalSource,
 
       originalLine: originalEnd.line,
       originalColumn: originalEnd.column,
@@ -133,6 +140,11 @@ export function createSourceMap({ ast }: { ast: AstNode[] }) {
       generatedLine: generatedEnd.line,
       generatedColumn: generatedEnd.column,
     })
+  }
+
+  // Populate
+  for (let source of lineTables.keys()) {
+    map.sources.push(sourceTable.get(source))
   }
 
   // Sort the mappings by their new position
@@ -158,7 +170,7 @@ export function createSourceMap({ ast }: { ast: AstNode[] }) {
     }
 
     last = mapping
-    return
+    return true
   })
 
   return map
