@@ -9,7 +9,7 @@ import {
   type Declaration,
   type Rule,
 } from './ast'
-import { createInputSource } from './source-maps/offsets'
+import { createInputSource, type Source } from './source-maps/offsets'
 
 const BACKSLASH = 0x5c
 const SLASH = 0x2f
@@ -230,7 +230,6 @@ export function parse(input: string, opts?: ParseOptions) {
 
       let start = i
       let colonIdx = -1
-      let valueIdx = -1
 
       for (let j = i + 2; j < input.length; j++) {
         peekChar = input.charCodeAt(j)
@@ -311,34 +310,15 @@ export function parse(input: string, opts?: ParseOptions) {
             closingBracketStack = closingBracketStack.slice(0, -1)
           }
         }
-
-        // Value part of the custom property
-        else if (colonIdx !== -1 && valueIdx == -1) {
-          valueIdx = i
-        }
       }
 
-      let declaration = parseDeclaration(buffer, colonIdx)
+      let declaration = parseDeclaration(buffer, colonIdx, source, start, i)
       if (!declaration) throw new Error(`Invalid custom property, expected a value`)
 
       if (parent) {
         parent.nodes.push(declaration)
       } else {
         ast.push(declaration)
-      }
-
-      if (source) {
-        declaration.offsets.property = {
-          original: source,
-          src: [start, colonIdx],
-          dst: null,
-        }
-
-        declaration.offsets.value = {
-          original: source,
-          src: [valueIdx, i],
-          dst: null,
-        }
       }
 
       buffer = ''
@@ -353,7 +333,7 @@ export function parse(input: string, opts?: ParseOptions) {
     //                 ^
     // ```
     else if (currentChar === SEMICOLON && buffer.charCodeAt(0) === AT_SIGN) {
-      node = parseAtRule(buffer)
+      node = parseAtRule(buffer, source, bufferStart, i)
 
       // At-rule is nested inside of a rule, attach it to the parent.
       if (parent) {
@@ -363,23 +343,6 @@ export function parse(input: string, opts?: ParseOptions) {
       // We are the root node which means we are done with the current node.
       else {
         ast.push(node)
-      }
-
-      // Track the source location for source maps
-      if (source) {
-        // TODO
-        node.offsets.name = {
-          original: source,
-          src: [bufferStart, bufferStart],
-          dst: null,
-        }
-
-        // TODO
-        node.offsets.params = {
-          original: source,
-          src: [bufferStart, bufferStart],
-          dst: null,
-        }
       }
 
       // Reset the state for the next node.
@@ -402,7 +365,7 @@ export function parse(input: string, opts?: ParseOptions) {
       currentChar === SEMICOLON &&
       closingBracketStack[closingBracketStack.length - 1] !== ')'
     ) {
-      let declaration = parseDeclaration(buffer)
+      let declaration = parseDeclaration(buffer, buffer.indexOf(':'), source, bufferStart, i)
       if (!declaration) {
         if (buffer.length === 0) throw new Error('Unexpected semicolon')
         throw new Error(`Invalid declaration: \`${buffer.trim()}\``)
@@ -412,22 +375,6 @@ export function parse(input: string, opts?: ParseOptions) {
         parent.nodes.push(declaration)
       } else {
         ast.push(declaration)
-      }
-
-      if (source) {
-        // TODO
-        declaration.offsets.property = {
-          original: source,
-          src: [bufferStart, bufferStart],
-          dst: null,
-        }
-
-        // TODO
-        declaration.offsets.value = {
-          original: source,
-          src: [bufferStart, i],
-          dst: null,
-        }
       }
 
       buffer = ''
@@ -441,7 +388,11 @@ export function parse(input: string, opts?: ParseOptions) {
       closingBracketStack += '}'
 
       // At this point `buffer` should resemble a selector or an at-rule.
-      node = rule(buffer.trim())
+      if (buffer.charCodeAt(0) === AT_SIGN) {
+        node = parseAtRule(buffer, source, bufferStart, i)
+      } else {
+        node = rule(buffer.trim())
+      }
 
       // Attach the rule to the parent in case it's nested.
       if (parent) {
@@ -461,20 +412,6 @@ export function parse(input: string, opts?: ParseOptions) {
         if (node.kind === 'rule') {
           // TODO
           node.offsets.selector = {
-            original: source,
-            src: [bufferStart, bufferStart],
-            dst: null,
-          }
-        } else if (node.kind === 'at-rule') {
-          // TODO
-          node.offsets.name = {
-            original: source,
-            src: [bufferStart, bufferStart],
-            dst: null,
-          }
-
-          // TODO
-          node.offsets.params = {
             original: source,
             src: [bufferStart, bufferStart],
             dst: null,
@@ -520,7 +457,7 @@ export function parse(input: string, opts?: ParseOptions) {
         // }
         // ```
         if (buffer.charCodeAt(0) === AT_SIGN) {
-          node = parseAtRule(buffer)
+          node = parseAtRule(buffer, source, bufferStart, i)
 
           // At-rule is nested inside of a rule, attach it to the parent.
           if (parent) {
@@ -530,25 +467,6 @@ export function parse(input: string, opts?: ParseOptions) {
           // We are the root node which means we are done with the current node.
           else {
             ast.push(node)
-          }
-
-          // Track the source location for source maps
-          if (source) {
-            // TODO
-            node.offsets.name = {
-              original: source,
-              src: [bufferStart, bufferStart],
-              dst: null,
-            }
-
-            // TODO
-            node.offsets.params = {
-              original: source,
-              src: [bufferStart, bufferStart],
-              dst: null,
-            }
-
-            // No body for this at-rule
           }
 
           // Reset the state for the next node.
@@ -574,26 +492,10 @@ export function parse(input: string, opts?: ParseOptions) {
 
           // Attach the declaration to the parent.
           if (parent) {
-            let node = parseDeclaration(buffer, colonIdx)
+            let node = parseDeclaration(buffer, colonIdx, source, bufferStart, i)
             if (!node) throw new Error(`Invalid declaration: \`${buffer.trim()}\``)
 
             parent.nodes.push(node)
-
-            if (source) {
-              // TODO
-              node.offsets.property = {
-                original: source,
-                src: [bufferStart, bufferStart],
-                dst: null,
-              }
-
-              // TODO
-              node.offsets.value = {
-                original: source,
-                src: [bufferStart, i],
-                dst: null,
-              }
-            }
           }
         }
       }
@@ -647,6 +549,8 @@ export function parse(input: string, opts?: ParseOptions) {
         continue
       }
 
+      if (buffer === '') bufferStart = i
+
       buffer += String.fromCharCode(currentChar)
     }
   }
@@ -655,7 +559,7 @@ export function parse(input: string, opts?: ParseOptions) {
   // means that we have an at-rule that is not terminated with a semicolon at
   // the end of the input.
   if (buffer.charCodeAt(0) === AT_SIGN) {
-    ast.push(parseAtRule(buffer))
+    ast.push(parseAtRule(buffer, source, bufferStart, input.length))
   }
 
   // When we are done parsing then everything should be balanced. If we still
@@ -676,7 +580,15 @@ export function parse(input: string, opts?: ParseOptions) {
   return ast
 }
 
-export function parseAtRule(buffer: string, nodes: AstNode[] = []): AtRule {
+export function parseAtRule(
+  buffer: string,
+  source: Source | null,
+  bufferStart: number,
+  bufferEnd: number,
+): AtRule {
+  let name = buffer
+  let params = ''
+
   // Assumption: The smallest at-rule in CSS right now is `@page`, this means
   //             that we can always skip the first 5 characters and start at the
   //             sixth (at index 5).
@@ -697,24 +609,59 @@ export function parseAtRule(buffer: string, nodes: AstNode[] = []): AtRule {
   for (let i = 5 /* '@page'.length */; i < buffer.length; i++) {
     let currentChar = buffer.charCodeAt(i)
     if (currentChar === SPACE || currentChar === OPEN_PAREN) {
-      let name = buffer.slice(0, i).trim()
-      let params = buffer.slice(i).trim()
-      return atRule(name, params, nodes)
+      name = buffer.slice(0, i)
+      params = buffer.slice(i)
+      break
     }
   }
 
-  return atRule(buffer.trim(), '', nodes)
+  let node = atRule(name.trim(), params.trim())
+
+  if (source) {
+    node.offsets.name = {
+      original: source,
+      src: [bufferStart, bufferStart + name.length],
+      dst: null,
+    }
+
+    if (node.params.length > 0) {
+      node.offsets.params = {
+        original: source,
+        src: [bufferStart + name.length, bufferEnd],
+        dst: null,
+      }
+    }
+  }
+
+  return node
 }
 
 function parseDeclaration(
   buffer: string,
-  colonIdx: number = buffer.indexOf(':'),
+  colonIdx: number,
+  source: Source | null,
+  bufferStart: number,
+  bufferEnd: number,
 ): Declaration | null {
   if (colonIdx === -1) return null
   let importantIdx = buffer.indexOf('!important', colonIdx + 1)
-  return decl(
-    buffer.slice(0, colonIdx).trim(),
-    buffer.slice(colonIdx + 1, importantIdx === -1 ? buffer.length : importantIdx).trim(),
-    importantIdx !== -1,
-  )
+  let property = buffer.slice(0, colonIdx)
+  let value = buffer.slice(colonIdx + 1, importantIdx === -1 ? buffer.length : importantIdx)
+  let node = decl(property.trim(), value.trim(), importantIdx !== -1)
+
+  if (source) {
+    node.offsets.property = {
+      original: source,
+      src: [bufferStart, bufferStart + colonIdx],
+      dst: null,
+    }
+
+    node.offsets.value = {
+      original: source,
+      src: [bufferStart + colonIdx + 1, bufferEnd],
+      dst: null,
+    }
+  }
+
+  return node
 }
